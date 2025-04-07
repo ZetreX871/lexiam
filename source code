@@ -1,5 +1,4 @@
 #include <iostream>
-#include <fstream>
 #include <cctype>
 #include <string>
 
@@ -7,37 +6,29 @@ using namespace std;
 
 /* Character classes */
 #define LETTER 0
-#define DIGIT 1 
+#define DIGIT 1
 #define UNKNOWN 99
 #define EOF_CLASS -1
 
 /* Token codes */
 #define INT_LIT 10
 #define IDENT 11
-#define KEYWORD 12
-
 #define ASSIGN_OP 20
-#define EQ_OP 21
-#define NEQ_OP 22
-#define LT_OP 23
-#define GT_OP 24
-#define LE_OP 25
-#define GE_OP 26
-
-#define ADD_OP 30
-#define SUB_OP 31
-#define MULT_OP 32
-#define DIV_OP 33
-
-#define LEFT_PAREN 40
-#define RIGHT_PAREN 41
+#define ADD_OP 21
+#define SUB_OP 22
+#define MULT_OP 23
+#define DIV_OP 24
+#define LEFT_PAREN 25
+#define RIGHT_PAREN 26
+#define END_OF_INPUT 99
 
 /* Globals */
 int charClass;
 string lexeme;
 char nextChar;
 int nextToken;
-ifstream inFile;
+string input;
+int pos = 0;
 
 /* Function declarations */
 void addChar();
@@ -46,109 +37,10 @@ void getNonBlank();
 int lex();
 int lookup(char ch);
 
-/******************************************************/
-/* Main driver */
-int main() {
-    string filename;
-    
-    cout << "Enter the input filename (e.g., input.txt): ";
-    cin >> filename;
-
-    inFile.open(filename);
-    if (!inFile.is_open()) {
-        cerr << "ERROR - cannot open file: " << filename << endl;
-        return 1;
-    }
-
-    cout << "Reading from file: " << filename << endl;
-    getChar();
-    do {
-        lex();
-    } while (nextToken != EOF);
-
-    cout << "Done analyzing.\n";
-    return 0;
-}
-
-/******************************************************/
-/* lookup - lookup operators and parentheses and return token */
-int lookup(char ch) {
-    addChar();
-
-    switch (ch) {
-        case '=':
-            getChar();
-            if (nextChar == '=') {
-                addChar();
-                nextToken = EQ_OP;
-            } else {
-                nextToken = ASSIGN_OP;
-                return nextToken; // Don't consume nextChar
-            }
-            break;
-
-        case '!':
-            getChar();
-            if (nextChar == '=') {
-                addChar();
-                nextToken = NEQ_OP;
-            } else {
-                nextToken = UNKNOWN;
-            }
-            break;
-
-        case '<':
-            getChar();
-            if (nextChar == '=') {
-                addChar();
-                nextToken = LE_OP;
-            } else {
-                nextToken = LT_OP;
-                return nextToken;
-            }
-            break;
-
-        case '>':
-            getChar();
-            if (nextChar == '=') {
-                addChar();
-                nextToken = GE_OP;
-            } else {
-                nextToken = GT_OP;
-                return nextToken;
-            }
-            break;
-
-        case '+':
-            nextToken = ADD_OP; break;
-        case '-':
-            nextToken = SUB_OP; break;
-        case '*':
-            nextToken = MULT_OP; break;
-        case '/':
-            nextToken = DIV_OP; break;
-        case '(':
-            nextToken = LEFT_PAREN; break;
-        case ')':
-            nextToken = RIGHT_PAREN; break;
-        default:
-            nextToken = UNKNOWN; break;
-    }
-
-    getChar();
-    return nextToken;
-}
-
-/******************************************************/
-/* addChar - adds nextChar to lexeme */
-void addChar() {
-    lexeme += nextChar;
-}
-
-/******************************************************/
-/* getChar - gets next character and sets character class */
+/* Get the next character and classify it */
 void getChar() {
-    if (inFile.get(nextChar)) {
+    if (pos < input.size()) {
+        nextChar = input[pos++];
         if (isalpha(nextChar))
             charClass = LETTER;
         else if (isdigit(nextChar))
@@ -160,17 +52,35 @@ void getChar() {
     }
 }
 
-/******************************************************/
-/* getNonBlank - skips whitespace */
-void getNonBlank() {
-    while (isspace(nextChar))
-        getChar();
+/* Add nextChar to lexeme */
+void addChar() {
+    lexeme += nextChar;
 }
 
-/******************************************************/
-/* lex - a simple lexical analyzer */
+/* Skip whitespace */
+void getNonBlank() {
+    while (isspace(nextChar)) {
+        getChar();
+    }
+}
+
+/* Recognize operators and parentheses */
+int lookup(char ch) {
+    switch (ch) {
+        case '(': addChar(); return LEFT_PAREN;
+        case ')': addChar(); return RIGHT_PAREN;
+        case '+': addChar(); return ADD_OP;
+        case '-': addChar(); return SUB_OP;
+        case '*': addChar(); return MULT_OP;
+        case '/': addChar(); return DIV_OP;
+        case '=': addChar(); return ASSIGN_OP;
+        default:  addChar(); return END_OF_INPUT;
+    }
+}
+
+/* The main lexical analyzer */
 int lex() {
-    lexeme.clear();
+    lexeme = "";
     getNonBlank();
 
     switch (charClass) {
@@ -181,13 +91,7 @@ int lex() {
                 addChar();
                 getChar();
             }
-
-            // Check for keywords
-            if (lexeme == "if" || lexeme == "int" || lexeme == "while" || lexeme == "return") {
-                nextToken = KEYWORD;
-            } else {
-                nextToken = IDENT;
-            }
+            nextToken = IDENT;
             break;
 
         case DIGIT:
@@ -201,17 +105,30 @@ int lex() {
             break;
 
         case UNKNOWN:
-            lookup(nextChar);
+            nextToken = lookup(nextChar);
             getChar();
             break;
 
         case EOF_CLASS:
+            nextToken = END_OF_INPUT;
             lexeme = "EOF";
-            nextToken = EOF;
             break;
     }
 
-    // Output the token and lexeme
-    cout << "Next token is: " << nextToken << ", Next lexeme is " << lexeme << endl;
+    cout << "Next token is: " << nextToken << ", Next lexeme is: " << lexeme << endl;
     return nextToken;
+}
+
+/* Main function */
+int main() {
+    cout << "Enter input string to analyze: ";
+    getline(cin, input);
+
+    getChar();
+    do {
+        lex();
+    } while (nextToken != END_OF_INPUT);
+
+    cout << "Lexical analysis complete.\n";
+    return 0;
 }
